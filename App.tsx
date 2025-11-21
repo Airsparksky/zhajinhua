@@ -1124,7 +1124,7 @@ const App: React.FC = () => {
              {/* Log Window */}
              <div className="h-16 bg-black/60 rounded-lg p-2 overflow-y-auto text-[10px] sm:text-xs font-mono text-green-400/80 border border-gray-800 shadow-inner">
                  {logs.slice(-5).map(log => (
-                     <div key={log.id} className="mb-0.5 hover:text-green-200 transition-colors">> {log.message}</div>
+                     <div key={log.id} className="mb-0.5 hover:text-green-200 transition-colors"> {log.message}</div>
                  ))}
                  <div ref={logsEndRef} />
              </div>
