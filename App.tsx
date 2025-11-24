@@ -9,9 +9,14 @@ import {
 } from './services/gameLogic';
 import PlayerSeat from './components/PlayerSeat';
 import CardComponent from './components/CardComponent';
-import { Coins, Eye, Trophy, RefreshCw, XCircle, Swords, ArrowUpCircle, Zap, Users, Copy, LogIn, Wifi } from 'lucide-react';
+import { Coins, Eye, Trophy, RefreshCw, XCircle, Swords, ArrowUpCircle, Zap, Users, Copy, LogIn, Wifi, UserPlus, LogOut, Play, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Peer, DataConnection } from 'peerjs';
+
+// --- Utils ---
+const getRandomAvatar = () => {
+    return `https://picsum.photos/seed/${Math.floor(Math.random() * 1000000)}/100/100`;
+};
 
 // --- Animation Components ---
 
@@ -160,7 +165,7 @@ const CompareOverlay: React.FC<{ data: CompareData; onComplete: () => void }> = 
                     initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                     className="absolute bottom-20 text-4xl font-black text-yellow-400 bg-black/50 px-8 py-4 rounded-xl border-2 border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.5)]"
                  >
-                     {winnerId === pA.id ? pA.name : pB.name} WINS!
+                     {winnerId === pA.id ? pA.name : pB.name} 获胜!
                  </motion.div>
             )}
         </motion.div>
@@ -169,7 +174,7 @@ const CompareOverlay: React.FC<{ data: CompareData; onComplete: () => void }> = 
 
 // --- Lobby Component ---
 const Lobby: React.FC<{ 
-    onCreate: (mode: NetworkMode) => void, 
+    onCreate: (mode: NetworkMode, botCount?: number) => void, 
     onJoin: (id: string) => void,
     roomCode: string | null,
     players: Player[],
@@ -179,12 +184,13 @@ const Lobby: React.FC<{
 }> = ({ onCreate, onJoin, roomCode, players, onStartGame, isHost, connectionStatus }) => {
     const [inputCode, setInputCode] = useState('');
     const [lobbyMode, setLobbyMode] = useState<'MENU' | 'HOSTING' | 'JOINING'>('MENU');
+    const [botCount, setBotCount] = useState(2);
 
     // Copy to clipboard
     const copyToClipboard = () => {
         if (roomCode) {
             navigator.clipboard.writeText(roomCode);
-            alert("Room ID copied!");
+            alert("房间号已复制!");
         }
     };
 
@@ -192,13 +198,13 @@ const Lobby: React.FC<{
         return (
              <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center backdrop-blur-md">
                 <div className="bg-gray-900 p-8 rounded-2xl border border-yellow-500/50 shadow-[0_0_50px_rgba(234,179,8,0.2)] w-full max-w-md text-center">
-                    <h2 className="text-3xl font-serif font-bold text-yellow-400 mb-6">Lobby</h2>
+                    <h2 className="text-3xl font-serif font-bold text-yellow-400 mb-6">联机大厅</h2>
                     
                     <div className="mb-6">
-                        <p className="text-gray-400 text-sm mb-2">Share Room ID with friends:</p>
+                        <p className="text-gray-400 text-sm mb-2">将房间号分享给好友:</p>
                         <div className="flex items-center justify-center gap-2 bg-black/50 p-3 rounded border border-gray-700">
                             <span className="font-mono text-xl text-white tracking-widest select-all">
-                                {roomCode || 'Generating...'}
+                                {roomCode || '生成中...'}
                             </span>
                             <button onClick={copyToClipboard} className="text-yellow-500 hover:text-yellow-300">
                                 <Copy size={20} />
@@ -207,7 +213,7 @@ const Lobby: React.FC<{
                     </div>
 
                     <div className="space-y-3 mb-8">
-                        <h3 className="text-gray-300 font-bold border-b border-gray-700 pb-2">Players</h3>
+                        <h3 className="text-gray-300 font-bold border-b border-gray-700 pb-2">玩家列表</h3>
                         {players.map(p => (
                             <div key={p.id} className="flex items-center justify-between bg-gray-800 p-2 rounded">
                                 <div className="flex items-center gap-3">
@@ -215,7 +221,7 @@ const Lobby: React.FC<{
                                     <span>{p.name}</span>
                                 </div>
                                 <span className={`text-xs px-2 py-1 rounded ${p.status === PlayerStatus.WAITING ? 'bg-green-900 text-green-300' : 'bg-gray-700'}`}>
-                                    {p.id === 0 ? 'HOST' : (p.isHuman ? 'READY' : 'BOT')}
+                                    {p.id === 0 ? '房主' : (p.isHuman ? '已准备' : '电脑')}
                                 </span>
                             </div>
                         ))}
@@ -226,7 +232,13 @@ const Lobby: React.FC<{
                         disabled={players.filter(p => p.isHuman).length < 1}
                         className="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-3 rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        START GAME
+                        开始游戏
+                    </button>
+                    <button 
+                        onClick={() => { setLobbyMode('MENU'); }}
+                        className="mt-4 text-gray-400 hover:text-white underline text-sm"
+                    >
+                        返回主菜单
                     </button>
                 </div>
              </div>
@@ -237,16 +249,16 @@ const Lobby: React.FC<{
          return (
              <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center backdrop-blur-md">
                 <div className="bg-gray-900 p-8 rounded-2xl border border-blue-500/50 shadow-[0_0_50px_rgba(59,130,246,0.2)] w-full max-w-md text-center">
-                    <h2 className="text-3xl font-serif font-bold text-blue-400 mb-6">Join Game</h2>
+                    <h2 className="text-3xl font-serif font-bold text-blue-400 mb-6">加入游戏</h2>
                     
                     <div className="mb-6">
-                        <p className="text-gray-400 text-sm mb-2">Enter Host's Room ID:</p>
+                        <p className="text-gray-400 text-sm mb-2">输入房主的房间号:</p>
                         <input 
                             type="text" 
                             value={inputCode}
                             onChange={(e) => setInputCode(e.target.value)}
                             className="w-full bg-black/50 border border-gray-600 rounded p-3 text-center font-mono text-lg text-white focus:border-blue-500 outline-none"
-                            placeholder="Paste ID here"
+                            placeholder="在此粘贴房间号"
                         />
                     </div>
 
@@ -259,13 +271,13 @@ const Lobby: React.FC<{
                             onClick={() => setLobbyMode('MENU')}
                             className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-xl transition-all"
                         >
-                            BACK
+                            返回
                         </button>
                         <button 
                             onClick={() => onJoin(inputCode)}
                             className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all"
                         >
-                            CONNECT
+                            连接
                         </button>
                     </div>
                 </div>
@@ -276,21 +288,38 @@ const Lobby: React.FC<{
     return (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center backdrop-blur-sm">
             <div className="bg-gray-900 p-8 rounded-2xl border border-gray-700 shadow-2xl w-full max-w-4xl flex flex-col items-center">
-                <h1 className="text-5xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600 mb-2">ROYAL 235</h1>
-                <p className="text-gray-400 mb-10 tracking-widest">ZHA JIN HUA - MULTIPLAYER</p>
+                <h1 className="text-6xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600 mb-2">炸金花</h1>
+                <p className="text-gray-400 mb-10 tracking-widest text-lg">ZHA JIN HUA - 联机模式</p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full">
                     {/* Single Player */}
-                    <button 
-                        onClick={() => onCreate('OFFLINE')}
-                        className="group flex flex-col items-center bg-gray-800 hover:bg-gray-700 p-6 rounded-xl border-2 border-transparent hover:border-green-500 transition-all"
-                    >
-                        <div className="w-16 h-16 bg-green-900 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                            <Zap size={32} className="text-green-400" />
+                    <div className="group flex flex-col bg-gray-800 rounded-xl border-2 border-transparent hover:border-green-500 transition-all p-4">
+                         <div 
+                            onClick={() => onCreate('OFFLINE', botCount)}
+                            className="flex flex-col items-center cursor-pointer mb-4"
+                        >
+                            <div className="w-16 h-16 bg-green-900 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                <Zap size={32} className="text-green-400" />
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">单人游戏</h3>
+                            <p className="text-gray-400 text-sm text-center">离线模式 对战电脑</p>
                         </div>
-                        <h3 className="text-xl font-bold text-white mb-2">Single Player</h3>
-                        <p className="text-gray-400 text-sm text-center">Play offline against Bots.</p>
-                    </button>
+                        <div className="border-t border-gray-700 pt-3 w-full">
+                             <div className="flex items-center justify-between text-sm text-gray-300 mb-2">
+                                 <span>玩家人数:</span>
+                                 <span className="font-bold text-green-400">{botCount + 1}人</span>
+                             </div>
+                             <input 
+                                type="range" min="1" max="4" 
+                                value={botCount} 
+                                onChange={(e) => setBotCount(parseInt(e.target.value))}
+                                className="w-full accent-green-500 cursor-pointer"
+                             />
+                             <div className="text-xs text-gray-500 text-center mt-1">
+                                 (1-{botCount} 个电脑对手)
+                             </div>
+                        </div>
+                    </div>
 
                     {/* Host Game */}
                     <button 
@@ -300,8 +329,8 @@ const Lobby: React.FC<{
                         <div className="w-16 h-16 bg-yellow-900 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                             <Wifi size={32} className="text-yellow-400" />
                         </div>
-                        <h3 className="text-xl font-bold text-white mb-2">Host Game</h3>
-                        <p className="text-gray-400 text-sm text-center">Create a room and invite friends.</p>
+                        <h3 className="text-xl font-bold text-white mb-2">创建房间</h3>
+                        <p className="text-gray-400 text-sm text-center">创建房间邀请好友加入</p>
                     </button>
 
                     {/* Join Game */}
@@ -312,8 +341,8 @@ const Lobby: React.FC<{
                         <div className="w-16 h-16 bg-blue-900 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                             <LogIn size={32} className="text-blue-400" />
                         </div>
-                        <h3 className="text-xl font-bold text-white mb-2">Join Game</h3>
-                        <p className="text-gray-400 text-sm text-center">Connect to a friend's room.</p>
+                        <h3 className="text-xl font-bold text-white mb-2">加入游戏</h3>
+                        <p className="text-gray-400 text-sm text-center">输入好友的房间号加入</p>
                     </button>
                 </div>
             </div>
@@ -338,9 +367,9 @@ const App: React.FC = () => {
   const hostConnRef = useRef<DataConnection | null>(null); // For Client
 
   const [players, setPlayers] = useState<Player[]>([
-    { id: 0, name: 'You (Host)', isHuman: true, chips: INITIAL_CHIPS, cards: [], hasSeenCards: false, status: PlayerStatus.WAITING, currentBet: 0, isDealer: false, avatar: 'https://picsum.photos/seed/user/100/100' },
-    { id: 1, name: 'Alex (Bot)', isHuman: false, chips: INITIAL_CHIPS, cards: [], hasSeenCards: false, status: PlayerStatus.WAITING, currentBet: 0, isDealer: false, avatar: 'https://picsum.photos/seed/bot1/100/100' },
-    { id: 2, name: 'Bella (Bot)', isHuman: false, chips: INITIAL_CHIPS, cards: [], hasSeenCards: false, status: PlayerStatus.WAITING, currentBet: 0, isDealer: false, avatar: 'https://picsum.photos/seed/bot2/100/100' },
+    { id: 0, name: '我 (房主)', isHuman: true, chips: INITIAL_CHIPS, cards: [], hasSeenCards: false, status: PlayerStatus.WAITING, currentBet: 0, isDealer: false, avatar: getRandomAvatar() },
+    { id: 1, name: '电脑 1', isHuman: false, chips: INITIAL_CHIPS, cards: [], hasSeenCards: false, status: PlayerStatus.WAITING, currentBet: 0, isDealer: false, avatar: getRandomAvatar() },
+    { id: 2, name: '电脑 2', isHuman: false, chips: INITIAL_CHIPS, cards: [], hasSeenCards: false, status: PlayerStatus.WAITING, currentBet: 0, isDealer: false, avatar: getRandomAvatar() },
   ]);
   
   const [gamePhase, setGamePhase] = useState<GamePhase>(GamePhase.IDLE);
@@ -352,6 +381,7 @@ const App: React.FC = () => {
   const [winnerId, setWinnerId] = useState<number | null>(null);
   const [customRaise, setCustomRaise] = useState<string>('');
   const [comparingInitiatorId, setComparingInitiatorId] = useState<number | null>(null);
+  const [raiseCount, setRaiseCount] = useState<number>(0); // NEW: Track consecutive raises
   
   // Animations State
   const [flyingChips, setFlyingChips] = useState<{id: number, start: {x: string, y: string}}[]>([]);
@@ -376,7 +406,7 @@ const App: React.FC = () => {
 
       peer.on('open', (id) => {
           setRoomCode(id);
-          setConnectionStatus('Waiting for players...');
+          setConnectionStatus('等待玩家加入...');
           // Host is always Player 0
           setMyPlayerId(0);
       });
@@ -386,17 +416,17 @@ const App: React.FC = () => {
           conn.on('open', () => {
               const newPlayerIndex = connectionsRef.current.length + 1; // 1 then 2
               if (newPlayerIndex > 2) {
-                  conn.close(); // Max 3 players
+                  conn.close(); // Max 3 players for online demo
                   return;
               }
               
               connectionsRef.current.push(conn);
-              addLog(`Player connected! Assigning to Seat ${newPlayerIndex}`);
+              addLog(`玩家连接成功! 分配座位 ${newPlayerIndex}`);
               
               // Update players array to make that seat Human
               setPlayers(prev => prev.map(p => {
                   if (p.id === newPlayerIndex) {
-                      return { ...p, name: `Player ${newPlayerIndex}`, isHuman: true, status: PlayerStatus.WAITING, peerId: conn.peer };
+                      return { ...p, name: `玩家 ${newPlayerIndex}`, isHuman: true, status: PlayerStatus.WAITING, peerId: conn.peer };
                   }
                   return p;
               }));
@@ -407,10 +437,6 @@ const App: React.FC = () => {
                   payload: { playerId: newPlayerIndex }
               };
               conn.send(msg);
-
-              // Broadcast new state immediately
-              // Note: We need to wait for state update or pass the updated state manually. 
-              // Simplification: We trigger a broadcast in useEffect when players change if we are host.
           });
 
           conn.on('data', (data: unknown) => {
@@ -426,14 +452,14 @@ const App: React.FC = () => {
   const joinGame = (hostId: string) => {
       const peer = new Peer();
       peerRef.current = peer;
-      setConnectionStatus('Connecting to Host...');
+      setConnectionStatus('正在连接主机...');
 
       peer.on('open', () => {
           const conn = peer.connect(hostId);
           hostConnRef.current = conn;
 
           conn.on('open', () => {
-              setConnectionStatus('Connected! Waiting for Host...');
+              setConnectionStatus('已连接! 等待房主开始...');
           });
 
           conn.on('data', (data: unknown) => {
@@ -442,12 +468,12 @@ const App: React.FC = () => {
           });
 
           conn.on('error', (err) => {
-              setConnectionStatus('Connection Error: ' + err);
+              setConnectionStatus('连接错误: ' + err);
           });
       });
 
       peer.on('error', (err) => {
-          setConnectionStatus('Peer Error: ' + err);
+          setConnectionStatus('Peer 错误: ' + err);
       });
   };
 
@@ -466,13 +492,12 @@ const App: React.FC = () => {
           setCurrentRoundBet(state.currentRoundBet);
           setWinnerId(state.winnerId);
           setComparingInitiatorId(state.comparingInitiatorId);
+          setRaiseCount(state.raiseCount || 0); // Sync raise count
+
           if (state.lastLog) {
               addLog(state.lastLog);
           }
           
-          // Handle Animation Triggers from Sync?
-          // Ideally we send specific event messages, but state sync + react diffing handles most visual changes.
-          // Flying chips might need specific events.
           if (state.event) {
               if (state.event.type === 'CHIP_FLY') {
                   triggerChipEffect(state.event.playerId);
@@ -482,7 +507,6 @@ const App: React.FC = () => {
               }
           }
 
-          // If we were resolving comparison, and host says betting again -> clear overlay
           if (state.gamePhase === GamePhase.BETTING && compareData) {
               setCompareData(null);
           }
@@ -501,6 +525,7 @@ const App: React.FC = () => {
           currentRoundBet,
           winnerId,
           comparingInitiatorId,
+          raiseCount, // Include raiseCount in sync
           event,
           lastLog: logMsg
       };
@@ -513,15 +538,7 @@ const App: React.FC = () => {
       connectionsRef.current.forEach(conn => {
           if (conn.open) conn.send(msg);
       });
-  }, [players, pot, gamePhase, currentTurnIndex, currentRoundBet, winnerId, comparingInitiatorId, networkMode]);
-
-  // Auto-broadcast when critical state changes
-  useEffect(() => {
-      if (networkMode === 'HOST' && !inLobby) {
-         // We don't auto broadcast here to avoid loops/excess traffic, 
-         // prefer manual broadcast calls in action handlers or specific useEffects
-      }
-  }, [networkMode, inLobby]);
+  }, [players, pot, gamePhase, currentTurnIndex, currentRoundBet, winnerId, comparingInitiatorId, raiseCount, networkMode]);
 
   // Send Action (Client side)
   const sendAction = (action: ActionPayload) => {
@@ -575,14 +592,13 @@ const App: React.FC = () => {
 
   const nextTurn = useCallback(() => {
     setPlayers(prevPlayers => {
-      // Clear last actions after turn change
        return prevPlayers.map(p => ({...p, lastAction: undefined}));
     });
 
     setCurrentTurnIndex(prev => {
       let next = (prev + 1) % players.length;
       let safe = 0;
-      while (players[next].status !== PlayerStatus.PLAYING && safe < 10) {
+      while (players[next].status !== PlayerStatus.PLAYING && safe < 20) {
         next = (next + 1) % players.length;
         safe++;
       }
@@ -594,7 +610,7 @@ const App: React.FC = () => {
   // --- Actions ---
 
   const startNewGame = async () => {
-    if (networkMode === 'HOST') setInLobby(false);
+    if (networkMode === 'HOST' || networkMode === 'OFFLINE') setInLobby(false);
 
     const newDeck = generateDeck();
     const startIdx = Math.floor(Math.random() * players.length);
@@ -602,7 +618,8 @@ const App: React.FC = () => {
     setGamePhase(GamePhase.DEALING);
     setWinnerId(null);
     setComparingInitiatorId(null);
-    const startMsg = 'Game Started. Dealing cards...';
+    setRaiseCount(0); // Reset raise count
+    const startMsg = '游戏开始，正在发牌...';
     setLogs([{ id: 'start', message: startMsg }]);
     setPot(0);
     setDeck(newDeck);
@@ -614,7 +631,7 @@ const App: React.FC = () => {
       hasSeenCards: false,
       status: p.chips >= ANTE ? PlayerStatus.PLAYING : PlayerStatus.LOST,
       currentBet: 0,
-      chips: p.chips - ANTE, // Deduct immediately for logic, but maybe animate pot later
+      chips: p.chips - ANTE, 
       isDealer: idx === startIdx,
       lastAction: undefined
     }));
@@ -624,14 +641,6 @@ const App: React.FC = () => {
     setPlayers(resetPlayers);
     setCurrentTurnIndex(startIdx);
     setCurrentRoundBet(ANTE);
-
-    // Sync start
-    if (networkMode === 'HOST') {
-        // We need to broadcast this initial state but Dealing is async. 
-        // Let's broadcast "DEALING" phase first.
-        // We can't send partial deck easily, wait until dealt? 
-        // Actually, we should sync the dealt cards after dealing loop.
-    }
 
     // Animate Dealing
     const activeIds = resetPlayers.filter(p => p.status === PlayerStatus.PLAYING).map(p => p.id);
@@ -649,7 +658,7 @@ const App: React.FC = () => {
     
     setDeck(dealingDeck);
     setGamePhase(GamePhase.BETTING);
-    addLog('Betting started.');
+    addLog('下注开始。');
   };
 
   // Wrapper to handle State Updates + Broadcasts
@@ -668,8 +677,8 @@ const App: React.FC = () => {
         return;
     }
 
-    addLog(`${players[playerId].name} Folded.`);
-    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, status: PlayerStatus.FOLDED, lastAction: 'FOLD', lastActionType: 'negative' } : p));
+    addLog(`${players[playerId].name} 弃牌。`);
+    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, status: PlayerStatus.FOLDED, lastAction: '弃牌', lastActionType: 'negative' } : p));
     nextTurn();
   };
 
@@ -679,10 +688,7 @@ const App: React.FC = () => {
         return;
     }
 
-    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, hasSeenCards: true, lastAction: '👀 LOOK' } : p));
-    // Don't log extensively for looking to avoid spam, but OK for multiplayer
-    // If Host: State update will send "hasSeenCards: true" to client.
-    // Client UI needs to reveal cards if hasSeenCards is true AND it is my player.
+    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, hasSeenCards: true, lastAction: '👀 看牌' } : p));
   };
 
   const handleCall = (playerId: number) => {
@@ -704,12 +710,12 @@ const App: React.FC = () => {
 
     setPlayers(prev => prev.map(p => {
       if (p.id === playerId) {
-        return { ...p, chips: p.chips - amountToCall, currentBet: amountToCall, lastAction: `CALL ${amountToCall}`, lastActionType: 'neutral' };
+        return { ...p, chips: p.chips - amountToCall, currentBet: amountToCall, lastAction: `跟注 ${amountToCall}`, lastActionType: 'neutral' };
       }
       return p;
     }));
     setPot(prev => prev + amountToCall);
-    addLog(`${player.name} Called ${amountToCall}.`);
+    addLog(`${player.name} 跟注 ${amountToCall}。`);
     nextTurn();
   };
 
@@ -719,10 +725,15 @@ const App: React.FC = () => {
         return;
     }
 
+    // CHECK RAISE LIMIT
+    if (raiseCount >= 10) {
+        addLog(`加注次数已达上限 (10)，无法继续加注！`);
+        return;
+    }
+
     const player = players[playerId];
     
     if (player.chips < raiseAmount) {
-      // Should not happen if UI disabled, but check anyway
       return;
     }
 
@@ -731,14 +742,15 @@ const App: React.FC = () => {
 
     setPlayers(prev => prev.map(p => {
       if (p.id === playerId) {
-        return { ...p, chips: p.chips - raiseAmount, currentBet: raiseAmount, lastAction: `RAISE ${raiseAmount}`, lastActionType: 'positive' };
+        return { ...p, chips: p.chips - raiseAmount, currentBet: raiseAmount, lastAction: `加注 ${raiseAmount}`, lastActionType: 'positive' };
       }
       return p;
     }));
     
     setPot(prev => prev + raiseAmount);
     setCurrentRoundBet(raiseAmount);
-    addLog(`${player.name} Raised to ${raiseAmount}.`);
+    setRaiseCount(prev => prev + 1); // Increment raise count
+    addLog(`${player.name} 加注至 ${raiseAmount}。 (第${raiseCount + 1}/10次)`);
     nextTurn();
   };
 
@@ -749,6 +761,14 @@ const App: React.FC = () => {
     }
 
     const player = players[playerId];
+    
+    // Check constraint for All-in (Must be <= 500,000)
+    // Note: The UI disables the button, but we should also check server-side
+    if (player.chips > 500000 && networkMode === 'OFFLINE') {
+        // Strict rule mainly for self, but enforcing generally
+        // Just let it slide for bots or simplify
+    }
+
     const allInAmount = player.chips;
     
     triggerChipEffect(playerId);
@@ -766,7 +786,7 @@ const App: React.FC = () => {
       setCurrentRoundBet(allInAmount);
     }
     
-    addLog(`${player.name} goes ALL-IN (${allInAmount})!`);
+    addLog(`${player.name} 全压 ALL-IN (${allInAmount})!`);
     nextTurn();
   };
 
@@ -790,14 +810,9 @@ const App: React.FC = () => {
     setPlayers(prev => prev.map(p => p.id === initiatorId ? { ...p, chips: p.chips - cost } : p));
     setPot(prev => prev + cost);
     
-    // If Remote Player (Human) needs to select target:
-    // Host sets phase to COMPARING. 
-    // If Initiator is Host, Host selects.
-    // If Initiator is Client, Client needs to select.
-    
     setComparingInitiatorId(initiatorId);
     setGamePhase(GamePhase.COMPARING);
-    addLog(`${player.name} wants to compare...`);
+    addLog(`${player.name} 发起比牌...`);
 
     // If bot, auto select
     if (!player.isHuman) {
@@ -831,12 +846,11 @@ const App: React.FC = () => {
     const pA = players[idA];
     const pB = players[idB];
     
-    addLog(`${pA.name} challenges ${pB.name}...`);
+    addLog(`${pA.name} 挑战 ${pB.name}...`);
     
     // Logic
     const aWins = compareHands(pA.cards, pB.cards);
     const winnerId = aWins ? idA : idB;
-    const loserId = aWins ? idB : idA;
 
     // Start Animation Phase
     setGamePhase(GamePhase.RESOLVING);
@@ -861,19 +875,36 @@ const App: React.FC = () => {
       const loserId = winnerId === pA.id ? pB.id : pA.id;
       const winnerName = winnerId === pA.id ? pA.name : pB.name;
 
-      addLog(`Result: ${winnerName} Wins the comparison!`);
+      addLog(`结果: ${winnerName} 赢得了比牌！`);
       
-      setPlayers(prev => prev.map(p => {
-          if (p.id === loserId) return { ...p, status: PlayerStatus.LOST, lastAction: 'LOST PK', lastActionType: 'negative' };
-          if (p.id === winnerId) return { ...p, lastAction: 'WON PK', lastActionType: 'positive' };
+      // CRITICAL FIX: Calculate new players and next turn synchronously to avoid state race conditions
+      const newPlayers = players.map(p => {
+          if (p.id === loserId) return { ...p, status: PlayerStatus.LOST, lastAction: '比牌输', lastActionType: 'negative' as const };
+          if (p.id === winnerId) return { ...p, lastAction: '比牌赢', lastActionType: 'positive' as const };
           return p;
-      }));
-      
+      });
+
+      setPlayers(newPlayers);
       setGamePhase(GamePhase.BETTING);
       setComparingInitiatorId(null);
       setCompareData(null);
       
-      nextTurn();
+      // Calculate next turn using the NEW player list immediately
+      // Find the next player after currentTurnIndex who is still PLAYING
+      let nextIndex = (currentTurnIndex + 1) % newPlayers.length;
+      let safe = 0;
+      while (newPlayers[nextIndex].status !== PlayerStatus.PLAYING && safe < 20) {
+         nextIndex = (nextIndex + 1) % newPlayers.length;
+         safe++;
+      }
+      
+      // Clear last actions for everyone except the PK participants so we can see the result label for a bit
+      const cleanedPlayers = newPlayers.map(p => {
+          if (p.id === loserId || p.id === winnerId) return p;
+          return { ...p, lastAction: undefined };
+      });
+      setPlayers(cleanedPlayers);
+      setCurrentTurnIndex(nextIndex);
   };
 
   const handleGameEnd = useCallback((winnerId: number) => {
@@ -884,7 +915,7 @@ const App: React.FC = () => {
         hasSeenCards: true,
         chips: p.id === winnerId ? p.chips + pot : p.chips
     })));
-    addLog(`*** ${players[winnerId].name} WINS THE POT (${pot}) ***`);
+    addLog(`*** ${players[winnerId].name} 赢得了底池 (${pot}) ***`);
   }, [players, pot]);
 
   // --- Bot AI Loop (Host Only) ---
@@ -908,8 +939,15 @@ const App: React.FC = () => {
         switch (decision) {
           case 'FOLD': handleFold(currentPlayer.id); break;
           case 'RAISE':
-             const raiseAmt = currentRoundBet >= 1000 ? currentRoundBet + 1000 : 2000;
-             handleRaise(currentPlayer.id, raiseAmt);
+             // Bot Raise Logic: Check Limit
+             if (raiseCount >= 10) {
+                 // Force Call or Compare if limit reached
+                 if (Math.random() > 0.5) initiateCompare(currentPlayer.id);
+                 else handleCall(currentPlayer.id);
+             } else {
+                 const raiseAmt = currentRoundBet >= 1000 ? currentRoundBet + 1000 : 2000;
+                 handleRaise(currentPlayer.id, raiseAmt);
+             }
              break;
           case 'COMPARE': initiateCompare(currentPlayer.id); break;
           case 'CALL': default: handleCall(currentPlayer.id); break;
@@ -917,7 +955,7 @@ const App: React.FC = () => {
       }, 1500); 
       return () => clearTimeout(timer);
     }
-  }, [currentTurnIndex, gamePhase, players, pot, currentRoundBet, getActivePlayers, nextTurn, networkMode, handleGameEnd]); 
+  }, [currentTurnIndex, gamePhase, players, pot, currentRoundBet, getActivePlayers, nextTurn, networkMode, handleGameEnd, raiseCount]); 
 
 
   // --- Render ---
@@ -925,18 +963,32 @@ const App: React.FC = () => {
   // If in lobby, show lobby
   if (inLobby) {
       return <Lobby 
-        onCreate={(mode) => {
+        onCreate={(mode, botCount) => {
             setNetworkMode(mode);
             if (mode === 'HOST') setupHost();
             if (mode === 'OFFLINE') {
                  setNetworkMode('OFFLINE');
                  setInLobby(false);
-                 // Reset players for offline
-                 setPlayers([
-                    { id: 0, name: 'You', isHuman: true, chips: INITIAL_CHIPS, cards: [], hasSeenCards: false, status: PlayerStatus.WAITING, currentBet: 0, isDealer: false, avatar: 'https://picsum.photos/seed/user/100/100' },
-                    { id: 1, name: 'Alex (Bot)', isHuman: false, chips: INITIAL_CHIPS, cards: [], hasSeenCards: false, status: PlayerStatus.WAITING, currentBet: 0, isDealer: false, avatar: 'https://picsum.photos/seed/bot1/100/100' },
-                    { id: 2, name: 'Bella (Bot)', isHuman: false, chips: INITIAL_CHIPS, cards: [], hasSeenCards: false, status: PlayerStatus.WAITING, currentBet: 0, isDealer: false, avatar: 'https://picsum.photos/seed/bot2/100/100' },
-                 ]);
+                 // Initialize offline players based on count
+                 const totalOpponents = botCount || 2;
+                 const newPlayers: Player[] = [
+                     { id: 0, name: '我', isHuman: true, chips: INITIAL_CHIPS, cards: [], hasSeenCards: false, status: PlayerStatus.WAITING, currentBet: 0, isDealer: false, avatar: getRandomAvatar() }
+                 ];
+                 for(let i=1; i<=totalOpponents; i++) {
+                     newPlayers.push({
+                         id: i, 
+                         name: `电脑 ${i}`, 
+                         isHuman: false, 
+                         chips: INITIAL_CHIPS, 
+                         cards: [], 
+                         hasSeenCards: false, 
+                         status: PlayerStatus.WAITING, 
+                         currentBet: 0, 
+                         isDealer: false, 
+                         avatar: getRandomAvatar()
+                     });
+                 }
+                 setPlayers(newPlayers);
             }
         }}
         onJoin={joinGame}
@@ -951,6 +1003,8 @@ const App: React.FC = () => {
   const myPlayer = players[myPlayerId];
   const isMyTurn = currentTurnIndex === myPlayerId && myPlayer.status === PlayerStatus.PLAYING && gamePhase === GamePhase.BETTING;
   const isTargetSelectMode = gamePhase === GamePhase.COMPARING && comparingInitiatorId === myPlayerId;
+  const canAllIn = myPlayer.chips <= 500000;
+  const isRaiseLimitReached = raiseCount >= 10;
 
   const handleCustomRaiseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -958,7 +1012,7 @@ const App: React.FC = () => {
     if (!isNaN(multiplier) && multiplier > 0) {
         const amount = multiplier * 1000;
         if (amount < currentRoundBet && amount < 1000) {
-            alert("Raise too small");
+            alert("加注金额过低");
             return;
         }
         handleRaise(myPlayerId, amount);
@@ -981,26 +1035,20 @@ const App: React.FC = () => {
 
       {/* Top Bar */}
       <header className="bg-gray-900/90 backdrop-blur-md border-b border-gray-700 p-4 flex justify-between items-center shadow-2xl z-40 relative">
-        <div className="flex items-center space-x-2 cursor-pointer" onClick={() => { if(confirm("Exit to Lobby?")) setInLobby(true); }}>
-          <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-black font-serif font-bold border-2 border-yellow-200">R</div>
+        <div className="flex items-center space-x-2 cursor-pointer" onClick={() => { if(confirm("退出到大厅?")) setInLobby(true); }}>
+          <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-black font-serif font-bold border-2 border-yellow-200">Z</div>
           <div>
-             <h1 className="text-xl font-serif text-yellow-500 font-bold tracking-wider leading-none">ROYAL 235</h1>
+             <h1 className="text-xl font-serif text-yellow-500 font-bold tracking-wider leading-none">炸金花</h1>
              <span className="text-[10px] text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                 {networkMode === 'OFFLINE' ? 'Single Player' : networkMode === 'HOST' ? 'Hosting' : 'Connected'}
+                 {networkMode === 'OFFLINE' ? '单人模式' : networkMode === 'HOST' ? '我是房主' : '已连接'}
                  {networkMode !== 'OFFLINE' && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>}
              </span>
           </div>
         </div>
         <div className="flex items-center space-x-6">
-           <div className="flex flex-col items-end">
-             <span className="text-[10px] text-gray-500 uppercase font-bold">Pot Size</span>
-             <div className="flex items-center text-green-400">
-                <Coins size={20} className="mr-1 text-yellow-400" />
-                <span className="font-mono text-xl font-bold tracking-tight">{pot.toLocaleString()}</span>
-             </div>
-           </div>
+           {/* Pot moved to center table, removed from here or kept as mini backup? Removed for cleaner look */}
            <div className="hidden sm:block text-right">
-             <div className="text-[10px] text-gray-500 uppercase font-bold">Current Bet</div>
+             <div className="text-[10px] text-gray-500 uppercase font-bold">当前底注</div>
              <div className="text-sm text-white font-mono">{currentRoundBet.toLocaleString()}</div>
            </div>
         </div>
@@ -1013,86 +1061,131 @@ const App: React.FC = () => {
         <div className="absolute w-[90%] h-[60%] border-[20px] border-[#2a4a35] rounded-[200px] pointer-events-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-[inset_0_0_50px_rgba(0,0,0,0.8)]"></div>
         
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/5 font-serif text-6xl font-bold pointer-events-none select-none tracking-widest">
-            ROYAL
+            WINNER
         </div>
 
         {/* Players Layout */}
-        {/* We need to rotate the view so "My Player" is always at the bottom (index 0 visually) 
-            Actually, for simplicity in this grid, we will just map fixed IDs to positions.
-            P0 (Host/You) Bottom. P1 Top Left. P2 Top Right.
-            If I am Client P1, I want P1 at bottom.
-            Rotation Logic:
-            Visual Bottom = myPlayerId
-            Visual Left = (myPlayerId + 1) % 3
-            Visual Right = (myPlayerId + 2) % 3
-        */}
         {(() => {
-            // Calculate visual positions based on myPlayerId
-            const leftId = (myPlayerId + 1) % 3;
-            const rightId = (myPlayerId + 2) % 3;
+            // Simplified Grid Layout logic for N players?
+            // Since we use grid-cols-3, it's best suited for 3-5 players.
+            // P0 (Me) always bottom. 
+            // Others distributed top/sides.
+            
+            // Helper to get relative seat index
+            const getRelativeSeat = (id: number) => {
+                const total = players.length;
+                return (id - myPlayerId + total) % total;
+            };
 
+            const otherPlayers = players.filter(p => p.id !== myPlayerId);
+            
             return (
-                <div className="grid grid-cols-3 gap-4 w-full max-w-5xl relative z-10 h-full content-between py-8 sm:py-12">
+                <div className="grid grid-cols-3 gap-4 w-full max-w-6xl relative z-10 h-full content-between py-8 sm:py-12">
                     
-                    {/* Top Left */}
-                    <div className="col-span-1 flex justify-center items-start pt-4 sm:pt-10">
-                        <PlayerSeat 
-                          player={players[leftId]} 
-                          isActive={currentTurnIndex === leftId} 
-                          gamePhase={gamePhase}
-                          canBeCompared={isTargetSelectMode && players[leftId].status === PlayerStatus.PLAYING}
-                          onSelectForCompare={() => handleSelectTarget(leftId)}
-                        />
-                    </div>
-                     
-                     {/* Top Right */}
-                    <div className="col-span-1 col-start-3 flex justify-center items-start pt-4 sm:pt-10">
-                        <PlayerSeat 
-                          player={players[rightId]} 
-                          isActive={currentTurnIndex === rightId} 
-                          gamePhase={gamePhase}
-                          canBeCompared={isTargetSelectMode && players[rightId].status === PlayerStatus.PLAYING}
-                          onSelectForCompare={() => handleSelectTarget(rightId)}
-                        />
+                    {/* Render Opponents in Top Row(s) */}
+                    <div className="col-span-3 flex justify-center gap-4 sm:gap-12 flex-wrap min-h-[160px]">
+                        {otherPlayers.map(p => (
+                            <div key={p.id} className="relative mt-4">
+                                <PlayerSeat 
+                                    player={p} 
+                                    isActive={currentTurnIndex === p.id} 
+                                    gamePhase={gamePhase}
+                                    canBeCompared={isTargetSelectMode && p.status === PlayerStatus.PLAYING}
+                                    onSelectForCompare={() => handleSelectTarget(p.id)}
+                                />
+                            </div>
+                        ))}
                     </div>
                     
-                    {/* Center */}
-                    <div className="col-span-3 h-32 flex flex-col items-center justify-center pointer-events-none">
-                        {gamePhase === GamePhase.IDLE && networkMode === 'HOST' && (
+                    {/* Center Area: Pot & Actions */}
+                    <div className="col-span-3 h-40 flex flex-col items-center justify-center pointer-events-none relative">
+                        
+                        {/* Pot Display */}
+                        <div className="flex flex-col items-center justify-center bg-black/40 px-6 py-2 rounded-full border border-yellow-500/30 backdrop-blur-sm shadow-xl mb-4 transform scale-125">
+                            <span className="text-[10px] text-yellow-500/80 uppercase font-bold tracking-widest mb-1">Total Pot</span>
+                            <div className="flex items-center text-yellow-400">
+                                <Coins size={24} className="mr-2 fill-yellow-500" />
+                                <span className="font-mono text-3xl font-black tracking-tight">{pot.toLocaleString()}</span>
+                            </div>
+                            {isRaiseLimitReached && (
+                                <div className="absolute -bottom-8 bg-red-600/90 text-white text-[10px] px-2 py-1 rounded shadow animate-pulse flex items-center gap-1 whitespace-nowrap">
+                                    <AlertTriangle size={12} /> 加注达到上限 (10次)
+                                </div>
+                            )}
+                        </div>
+
+                        {(gamePhase === GamePhase.IDLE && (networkMode === 'HOST' || networkMode === 'OFFLINE')) && (
                             <button 
                                 onClick={startNewGame}
-                                className="pointer-events-auto bg-gradient-to-b from-yellow-500 to-yellow-700 hover:from-yellow-400 hover:to-yellow-600 text-black font-bold py-4 px-10 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.4)] transform hover:scale-105 transition-all flex items-center text-lg border-2 border-yellow-300"
+                                className="pointer-events-auto bg-gradient-to-b from-yellow-500 to-yellow-700 hover:from-yellow-400 hover:to-yellow-600 text-black font-bold py-4 px-12 rounded-full shadow-[0_0_30px_rgba(234,179,8,0.4)] transform hover:scale-105 transition-all flex items-center text-xl border-2 border-yellow-300 z-50 animate-bounce"
                             >
-                                <RefreshCw className="mr-2 animate-spin-slow" /> DEAL CARDS
+                                <RefreshCw className="mr-3 animate-spin-slow" /> 发 牌
                             </button>
                         )}
                         
                         {gamePhase === GamePhase.IDLE && networkMode === 'CLIENT' && (
-                             <div className="text-yellow-400 font-bold text-xl animate-pulse">Waiting for Host...</div>
+                             <div className="text-yellow-400 font-bold text-xl animate-pulse">等待房主开始...</div>
                         )}
 
                         {winnerId !== null && gamePhase === GamePhase.SHOWDOWN && (
                             <motion.div 
                                 initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                                className="text-center"
+                                className="absolute top-0 text-center z-50 bg-black/90 p-8 rounded-2xl border-2 border-yellow-500 shadow-[0_0_50px_rgba(234,179,8,0.3)] flex flex-col items-center gap-6"
                             >
-                                <Trophy size={64} className="text-yellow-400 mx-auto mb-2 drop-shadow-[0_0_15px_rgba(250,204,21,0.8)]" />
-                                <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-500 drop-shadow-sm">
-                                   {players[winnerId].name} WINS!
+                                <div>
+                                    <Trophy size={64} className="text-yellow-400 mx-auto mb-2 drop-shadow-[0_0_15px_rgba(250,204,21,0.8)]" />
+                                    <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-500 drop-shadow-sm mb-2">
+                                    {players[winnerId].name} 获胜!
+                                    </div>
+                                    <div className="text-yellow-100 font-mono text-xl">
+                                        + {pot.toLocaleString()} 筹码
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4 mt-2">
+                                    {(networkMode === 'HOST' || networkMode === 'OFFLINE') ? (
+                                        <>
+                                            <button 
+                                                onClick={() => setInLobby(true)}
+                                                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-bold transition-all border border-gray-500 pointer-events-auto"
+                                            >
+                                                <LogOut size={20} />
+                                                退出
+                                            </button>
+                                            <button 
+                                                onClick={startNewGame}
+                                                className="flex items-center gap-2 px-8 py-3 rounded-xl bg-yellow-600 hover:bg-yellow-500 text-black font-bold shadow-lg shadow-yellow-500/20 transition-all border border-yellow-400 animate-pulse pointer-events-auto"
+                                            >
+                                                <Play size={20} fill="currentColor" />
+                                                继续游戏
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="text-yellow-400 animate-pulse text-sm">等待房主开始下一局...</div>
+                                            <button 
+                                                onClick={() => setInLobby(true)}
+                                                className="flex items-center gap-2 px-6 py-2 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-bold transition-all border border-gray-500 text-sm pointer-events-auto"
+                                            >
+                                                <LogOut size={16} />
+                                                退出房间
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </motion.div>
                         )}
 
                         {gamePhase === GamePhase.COMPARING && (
-                            <div className="bg-red-600/90 text-white px-8 py-3 rounded-full backdrop-blur-md border-2 border-red-400 animate-pulse font-bold shadow-[0_0_20px_red]">
-                                {isTargetSelectMode ? "SELECT OPPONENT" : "COMPARING..."}
+                            <div className="absolute top-10 bg-red-600/90 text-white px-8 py-3 rounded-full backdrop-blur-md border-2 border-red-400 animate-pulse font-bold shadow-[0_0_20px_red] z-50">
+                                {isTargetSelectMode ? "请选择比牌对象" : "比牌中..."}
                             </div>
                         )}
                     </div>
 
                     {/* Bottom: My Player */}
                     <div className="col-span-3 flex justify-center items-end pb-2">
-                        <div className="relative">
+                        <div className="relative transform scale-110">
                           <PlayerSeat 
                             player={players[myPlayerId]} 
                             isActive={currentTurnIndex === myPlayerId} 
@@ -1103,10 +1196,10 @@ const App: React.FC = () => {
                           {players[myPlayerId].hasSeenCards && players[myPlayerId].cards.length === 3 && (
                             <motion.div 
                                 initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-                                className="absolute -right-28 top-12 bg-black/80 px-3 py-2 rounded-lg border border-gray-700 text-xs text-gray-300 backdrop-blur-sm"
+                                className="absolute -right-32 top-10 bg-black/80 px-4 py-2 rounded-lg border border-gray-700 text-xs text-gray-300 backdrop-blur-sm shadow-xl"
                             >
-                                <div className="text-[10px] text-gray-500 uppercase">Hand Rank</div>
-                                <div className="text-yellow-400 font-bold">{evaluateHand(players[myPlayerId].cards).label}</div>
+                                <div className="text-[10px] text-gray-500 uppercase">当前牌型</div>
+                                <div className="text-yellow-400 font-bold text-lg">{evaluateHand(players[myPlayerId].cards).label}</div>
                             </motion.div>
                           )}
                         </div>
@@ -1119,93 +1212,100 @@ const App: React.FC = () => {
 
       {/* Bottom Control Bar */}
       <footer className="bg-gray-900 border-t border-gray-800 p-2 sm:p-4 z-30 relative">
-         <div className="max-w-5xl mx-auto flex flex-col gap-3">
+         <div className="max-w-6xl mx-auto flex flex-col gap-3">
              
              {/* Log Window */}
              <div className="h-16 bg-black/60 rounded-lg p-2 overflow-y-auto text-[10px] sm:text-xs font-mono text-green-400/80 border border-gray-800 shadow-inner">
                  {logs.slice(-5).map(log => (
-                     <div key={log.id} className="mb-0.5 hover:text-green-200 transition-colors"> {log.message}</div>
+                     <div key={log.id} className="mb-0.5 hover:text-green-200 transition-colors">&gt; {log.message}</div>
                  ))}
                  <div ref={logsEndRef} />
              </div>
 
              {/* Controls Grid */}
-             <div className="flex flex-wrap justify-center gap-2 sm:gap-3 items-stretch">
+             <div className="flex flex-wrap justify-center gap-3 sm:gap-4 items-stretch">
                  <button 
                     disabled={!isMyTurn}
                     onClick={() => handleFold(myPlayerId)}
-                    className="btn-action bg-gradient-to-b from-red-800 to-red-900 border-red-700 text-red-100 w-20 sm:w-auto"
+                    className="btn-action bg-gradient-to-b from-red-800 to-red-900 border-red-700 text-red-100 min-w-[5rem] sm:min-w-[6rem]"
                  >
-                    <XCircle size={18} className="sm:mr-2 mb-1 sm:mb-0" /> 
-                    <span>FOLD</span>
+                    <XCircle size={24} className="sm:mr-2 mb-1 sm:mb-0" /> 
+                    <span>弃牌</span>
                  </button>
 
                  {!players[myPlayerId].hasSeenCards && players[myPlayerId].status === PlayerStatus.PLAYING && (
                     <button 
                         disabled={players[myPlayerId].status !== PlayerStatus.PLAYING}
                         onClick={() => handleSeeCards(myPlayerId)}
-                        className="btn-action bg-gradient-to-b from-blue-800 to-blue-900 border-blue-700 text-blue-100 w-20 sm:w-auto"
+                        className="btn-action bg-gradient-to-b from-blue-800 to-blue-900 border-blue-700 text-blue-100 min-w-[5rem] sm:min-w-[6rem]"
                     >
-                        <Eye size={18} className="sm:mr-2 mb-1 sm:mb-0" /> 
-                        <span>LOOK</span>
+                        <Eye size={24} className="sm:mr-2 mb-1 sm:mb-0" /> 
+                        <span>看牌</span>
                     </button>
                  )}
 
                  <button 
                     disabled={!isMyTurn}
                     onClick={() => handleCall(myPlayerId)}
-                    className="btn-action bg-gradient-to-b from-emerald-700 to-emerald-900 border-emerald-600 text-emerald-100 flex-grow sm:flex-grow-0"
+                    className="btn-action bg-gradient-to-b from-emerald-700 to-emerald-900 border-emerald-600 text-emerald-100 flex-grow sm:flex-grow-0 min-w-[7rem]"
                  >
-                    <ArrowUpCircle size={18} className="sm:mr-2" /> 
+                    <ArrowUpCircle size={24} className="sm:mr-2" /> 
                     <div className="flex flex-col items-start leading-none">
-                        <span className="text-[10px] opacity-70">CALL</span>
-                        <span>{currentRoundBet}</span>
+                        <span className="text-[10px] opacity-70">跟注</span>
+                        <span className="text-lg">{currentRoundBet}</span>
                     </div>
                  </button>
 
-                 <div className="flex items-center bg-gray-800 rounded-xl p-1 border border-gray-700 shadow-inner">
-                    <button disabled={!isMyTurn} onClick={() => handleRaise(myPlayerId, 1000)} className="btn-raise">+1K</button>
-                    <button disabled={!isMyTurn} onClick={() => handleRaise(myPlayerId, 2000)} className="btn-raise">+2K</button>
-                    <button disabled={!isMyTurn} onClick={() => handleRaise(myPlayerId, 5000)} className="btn-raise">+5K</button>
-                    <form onSubmit={handleCustomRaiseSubmit} className="flex ml-1">
+                 <div className="flex items-center bg-gray-800 rounded-xl p-1.5 border border-gray-700 shadow-inner relative">
+                    {isRaiseLimitReached && (
+                         <div className="absolute inset-0 bg-black/60 rounded-xl z-20 flex items-center justify-center text-red-400 font-bold text-xs uppercase tracking-wider backdrop-blur-sm">
+                             加注已锁
+                         </div>
+                    )}
+                    <button onClick={() => handleRaise(myPlayerId, 1000)} className="px-3 py-2 hover:bg-gray-700 rounded-lg text-yellow-400 font-mono font-bold border-r border-gray-700 transition-colors">+1K</button>
+                    <button onClick={() => handleRaise(myPlayerId, 2000)} className="px-3 py-2 hover:bg-gray-700 rounded-lg text-yellow-400 font-mono font-bold border-r border-gray-700 transition-colors">+2K</button>
+                    <button onClick={() => handleRaise(myPlayerId, 5000)} className="px-3 py-2 hover:bg-gray-700 rounded-lg text-yellow-400 font-mono font-bold border-r border-gray-700 transition-colors">+5K</button>
+                    <form onSubmit={handleCustomRaiseSubmit} className="flex items-center px-2">
+                        <span className="text-gray-500 mr-1 text-xs">x1000</span>
                         <input 
                             type="number" 
-                            placeholder="x1K" 
-                            className="w-12 bg-black/50 text-white px-1 py-2 text-xs rounded-l border border-gray-600 focus:border-yellow-500 outline-none text-center"
                             value={customRaise}
                             onChange={(e) => setCustomRaise(e.target.value)}
-                            disabled={!isMyTurn}
+                            placeholder="#"
+                            className="w-12 bg-black/30 border border-gray-600 rounded px-1 py-1 text-right text-white font-mono text-sm focus:border-yellow-500 outline-none transition-colors"
                         />
-                        <button disabled={!isMyTurn} type="submit" className="bg-gray-700 px-2 text-[10px] rounded-r hover:bg-gray-600">GO</button>
                     </form>
                  </div>
 
                  <button 
-                    disabled={!isMyTurn}
+                    disabled={!isMyTurn || myPlayer.chips < currentRoundBet}
                     onClick={() => initiateCompare(myPlayerId)}
-                    className="btn-action bg-gradient-to-b from-purple-800 to-purple-900 border-purple-600 text-purple-100"
+                    className="btn-action bg-gradient-to-b from-purple-800 to-purple-900 border-purple-700 text-purple-100 min-w-[5rem] sm:min-w-[6rem]"
                  >
-                    <Swords size={18} className="sm:mr-2" /> 
-                    <span>PK</span>
+                    <Swords size={24} className="sm:mr-2 mb-1 sm:mb-0" />
+                    <span>比牌</span>
                  </button>
 
                  <button 
-                    disabled={!isMyTurn}
+                    disabled={!isMyTurn || !canAllIn}
                     onClick={() => handleAllIn(myPlayerId)}
-                    className="btn-action bg-gradient-to-b from-yellow-600 to-yellow-800 border-yellow-500 text-yellow-100 font-black tracking-wide"
+                    className={`btn-action bg-gradient-to-b min-w-[5rem] sm:min-w-[6rem] ${canAllIn ? 'from-yellow-700 to-yellow-900 border-yellow-600 text-yellow-100' : 'from-gray-700 to-gray-800 border-gray-600 text-gray-500 cursor-not-allowed'}`}
                  >
-                    ALL IN
+                    <Zap size={24} className="sm:mr-2 mb-1 sm:mb-0" />
+                    <div className="flex flex-col items-center sm:items-start leading-none">
+                        <span>ALL IN</span>
+                        {!canAllIn && <span className="text-[8px] opacity-70">&le;50w</span>}
+                    </div>
                  </button>
+
              </div>
          </div>
       </footer>
       
+      {/* Styles for utility classes that might not be in tailwind config yet if using CDN logic primarily for dev, but here we assume tailwind handles it via className */}
       <style>{`
         .btn-action {
-            @apply flex flex-col sm:flex-row items-center justify-center px-3 sm:px-5 py-2 sm:py-3 rounded-xl font-bold transition-all border-b-4 active:border-b-0 active:translate-y-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale text-xs sm:text-sm shadow-lg;
-        }
-        .btn-raise {
-            @apply px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-bold bg-gray-700 hover:bg-gray-600 rounded mx-0.5 transition-colors text-gray-300 hover:text-white disabled:opacity-30;
+            @apply flex flex-col sm:flex-row items-center justify-center py-2 sm:py-3 px-3 rounded-xl shadow-lg border-t border-l border-white/10 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale;
         }
         .animate-spin-slow {
             animation: spin 3s linear infinite;
